@@ -1,5 +1,8 @@
 const { google } = require('googleapis');
 const { markAsReadAndAddLabel } = require('./labels');
+const fs = require('fs');
+const path = require('path');
+
 
 async function listRecentUnreadEmails(auth) {
     const gmail = google.gmail({version: 'v1', auth});
@@ -89,7 +92,7 @@ async function listRecentUnreadEmails(auth) {
 async function replyToEmail(auth, messageId, to, subject, body) {
     const gmail = google.gmail({ version: 'v1', auth });
 
-    const raw = makeBody(to, 'me', subject, body, messageId);
+    const raw = makeBody(to, 'me', subject, body, messageId,'akash.jpg');
     const encodedMessage = Buffer.from(raw).toString('base64').replace(/\+/g, '-').replace(/\//g, '_');
 
     try {
@@ -106,21 +109,46 @@ async function replyToEmail(auth, messageId, to, subject, body) {
     }
 }
 
-function makeBody(to, from, subject, message, messageId) {
-    var str = ["Content-Type: text/plain; charset=\"UTF-8\"\n",
-        "MIME-Version: 1.0\n",
-        "Content-Transfer-Encoding: 7bit\n",
-        "to: ", to, "\n",
-        "from: ", from, "\n",
-        "subject: ", subject, "\n",
-        "In-Reply-To: ", messageId, "\n",
-        "References: ", messageId, "\n",
-        "\n",
-        message
+function makeBody(to, from, subject, message, messageId, imagePath) {
+    var str = [
+        'Content-Type: multipart/mixed; boundary="foo_bar_baz"\n',
+        'MIME-Version: 1.0\n',
+        'to: ', to, '\n',
+        'from: ', from, '\n',
+        'subject: ', subject, '\n',
+        'In-Reply-To: ', messageId, '\n',
+        'References: ', messageId, '\n',
+        '\n',
+        '--foo_bar_baz\n',
+        'Content-Type: text/plain; charset="UTF-8"\n',
+        'MIME-Version: 1.0\n',
+        'Content-Transfer-Encoding: 7bit\n',
+        '\n',
+        message,
+        '\n',
+        '--foo_bar_baz\n'
     ].join('');
+
+    // Check if an image path is provided and the file exists
+    if(imagePath && fs.existsSync(imagePath)) {
+        const filename = path.basename(imagePath);
+        const fileContent = fs.readFileSync(imagePath, { encoding: 'base64' });
+        
+        str += [
+            'Content-Type: image/jpeg; name="', filename, '"\n',
+            'MIME-Version: 1.0\n',
+            'Content-Transfer-Encoding: base64\n',
+            'Content-Disposition: attachment; filename="', filename, '"\n',
+            '\n',
+            fileContent,
+            '\n',
+            '--foo_bar_baz--'
+        ].join('');
+    }
 
     return str;
 }
+
 
 module.exports = {
   listRecentUnreadEmails,
